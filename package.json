@@ -1,0 +1,58 @@
+{
+  "name": "perfhound",
+  "version": "0.1.0",
+  "description": "In-pipeline WebdriverIO/Appium plugin that captures Android FPS, CPU, and memory metrics during tests and reports them with percentile stats — a free, versioned-in-repo alternative to a standalone profiler.",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./service": {
+      "types": "./dist/service/index.d.ts",
+      "import": "./dist/service/index.js"
+    },
+    "./reporter": {
+      "types": "./dist/report/html.d.ts",
+      "import": "./dist/report/html.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "node --import tsx --test test/aggregator.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "webdriverio",
+    "wdio-service",
+    "appium",
+    "android",
+    "performance",
+    "fps",
+    "cpu",
+    "memory",
+    "profiling"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "webdriverio": "^9.0.0",
+    "@wdio/globals": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@wdio/types": "^9.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
