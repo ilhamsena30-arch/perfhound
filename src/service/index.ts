@@ -54,7 +54,7 @@ export class PerfhoundService implements Services.ServiceInstance {
     browser.addCommand('stopPerfSample', () => this.stopPerfSample());
   }
 
-  private startPerfSample(label: string): void {
+  private async startPerfSample(label: string): Promise<void> {
     if (this.open) {
       // Edge case: calling startPerfSample twice without a stop must throw, naming the open label.
       throw new Error(
@@ -64,11 +64,12 @@ export class PerfhoundService implements Services.ServiceInstance {
     }
 
     const collectors = this.createCollectors();
-    for (const collector of collectors) {
-      collector.start();
-    }
-
+    // Mark the sample open synchronously, before any await, so a second call made before this
+    // one's async collector startup finishes still sees `this.open` and throws (no start/start race).
     this.open = { label, startedAt: Date.now(), collectors };
+
+    // Some collectors (e.g. FpsCollector) do an async baseline read before they start polling.
+    await Promise.all(collectors.map((collector) => collector.start()));
   }
 
   private async stopPerfSample(): Promise<PerfReport> {
@@ -145,7 +146,7 @@ declare global {
   namespace WebdriverIO {
     interface Browser {
       /** Starts collecting FPS/CPU/memory samples under `label`. Throws if a sample is already open. */
-      startPerfSample(label: string): void;
+      startPerfSample(label: string): Promise<void>;
       /** Stops the open sample, writes <label>.json (+ optional HTML), and returns the PerfReport. */
       stopPerfSample(): Promise<PerfReport>;
     }

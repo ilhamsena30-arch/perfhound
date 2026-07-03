@@ -8,23 +8,33 @@ export interface CpuCollectorOptions extends AdbOptions {
 }
 
 /**
- * Interval-sampled: emits one Sample per poll — { t: poll time (ms), value: CPU % for the app process }.
- * High `value`s are what make CPU's 1% HIGH tail the headline stat (spikes); the low tail is meaningless.
+ * Parses `adb shell dumpsys cpuinfo` output for a single process line's CPU %.
  *
- * TODO: parse `adb shell cat /proc/<pid>/stat` deltas (preferred, per-process, precise), or fall back
- * to `adb shell dumpsys cpuinfo` (system-wide, coarser, no per-process pid lookup required).
+ * Verified against a real device — one line per process:
  *
- * dumpsys cpuinfo shape (one line per process):
- *   9.9% 1234:com.example.app/u0a123: 5.2% user + 4.7% kernel
+ *   14% 532/system_server: 7.3% user + 6.9% kernel / faults: 410342 minor 24630 major
+ *   0.6% 2735/com.google.android.youtube: 0.3% user + 0.2% kernel / faults: 25143 minor 7047 major
  *
- * /proc/<pid>/stat shape (space-separated fields, 1-indexed per `man proc`):
- *   pid (comm) state ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt
- *   utime(14) stime(15) cutime cstime priority nice num_threads itrealvalue starttime(22) ...
+ * i.e. `<total%> <pid>/<processName>: <user%> user + <kernel%> kernel / faults: ...`. This is
+ * system-wide (all processes) and coarser than /proc/<pid>/stat deltas, but requires no pid
+ * lookup or double-poll state — a reasonable v1 tradeoff. A precise per-process alternative is
+ * to read `/proc/<pid>/stat` (space-separated fields; utime is field 14, stime is field 15) at
+ * two points in time and compute:
+ *   ticks = (utime2 + stime2) - (utime1 + stime1)
+ *   CPU%  = ticks / ((elapsedMs / 1000) * USER_HZ) * 100   where USER_HZ is typically 100 on Android
  *
- * CPU% between two polls at utime/stime pairs (u1,s1) and (u2,s2), elapsedMs apart:
- *   ticks    = (u2 + s2) - (u1 + s1)
- *   CPU%     = ticks / ((elapsedMs / 1000) * USER_HZ) * 100   where USER_HZ is typically 100 on Android
+ * Returns null if the package has no matching line (e.g. it isn't running, or used <0.1% CPU
+ * and cpuinfo omitted it for this window).
  */
+export function parseCpuInfo(output: string, packageName: string): number | null {
+  for (const line of output.split('\n')) {
+    const match = line.trim().match(/^([\d.]+)%\s+\d+\/(\S+):/);
+    if (!match) continue;
+    if (match[2] !== packageName) continue;
+    return Number(match[1]);
+  }
+  return null;
+}
 export class CpuCollector extends BaseCollector {
   readonly name = 'cpu' as const;
   readonly unit = '%';
@@ -51,9 +61,11 @@ export class CpuCollector extends BaseCollector {
 
   private async poll(): Promise<void> {
     try {
-      await adbShell(['dumpsys', 'cpuinfo'], { deviceId: this.options.deviceId });
-      // TODO: locate this.options.packageName's line (or /proc/<pid>/stat deltas), parse the
-      // percentage described above, and this.record({ t: Date.now(), value: percent }).
+      const output = await adbShell(['dumpsys', 'cpuinfo'], { deviceId: this.options.deviceId });
+      const percent = parseCpuInfo(output, this.options.packageName);
+      if (percent !== null) {
+        this.record({ t: Date.now(), value: percent });
+      }
     } catch {
       // Swallow: the owning service already warns once when adb is unavailable.
     }

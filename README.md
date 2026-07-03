@@ -105,11 +105,15 @@ you're free to build your own dashboards on top of it.
 - **Service** (`src/service/index.ts`): full WDIO lifecycle wiring, command registration, collector
   orchestration, JSON + HTML output, and all edge cases above.
 - **HTML renderer** (`src/report/html.ts`): pure `PerfReport -> string`, no dependencies.
-- **Collectors** (`src/collectors/*.ts`): interface, lifecycle (start/stop/flush), and adb
-  plumbing are real. The actual `dumpsys` output parsing is a documented `// TODO` in each file —
-  each stub cites the exact raw shape it needs to parse (`gfxinfo framestats` for FPS, `cpuinfo` /
-  `/proc/<pid>/stat` for CPU, `meminfo` PSS for memory) so finishing it is a parsing exercise
-  against known output, not a design problem.
+- **Collectors** (`src/collectors/*.ts`): FPS (`dumpsys gfxinfo framestats`), CPU (`dumpsys cpuinfo`),
+  and memory (`dumpsys meminfo` PSS) parsing is implemented and unit-tested against hand-crafted
+  fixtures covering the documented raw shapes (`test/collectors.test.ts`) — validated during
+  development against real captures from a connected device, but tested going forward against
+  minimal, purpose-built inputs rather than an opaque real dump. Notably, FPS de-duplicates across
+  polls (`framestats` is a rolling ~120-frame buffer, not "since last poll" — see the caveat in
+  `src/collectors/fps.ts`). CPU/memory use the simpler, coarser `dumpsys`-based reads rather than
+  `/proc/<pid>/stat` deltas — see [`TODO.md`](TODO.md) for the precision follow-up and other known
+  limitations.
 
 ## Roadmap (deliberately out of scope for v1)
 

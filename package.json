@@ -28,7 +28,7 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
-    "test": "node --import tsx --test test/aggregator.test.ts",
+    "test": "node --import tsx --test test/aggregator.test.ts test/collectors.test.ts test/service.test.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

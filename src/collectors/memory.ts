@@ -8,24 +8,36 @@ export interface MemoryCollectorOptions extends AdbOptions {
 }
 
 /**
- * Interval-sampled: emits one Sample per poll — { t: poll time (ms), value: PSS in MB for the app process }.
- * High `value`s are what make memory's 1% HIGH tail the headline stat (leak risk); the low tail is meaningless.
+ * Parses `adb shell dumpsys meminfo <package>` output for the process's total PSS, in MB.
  *
- * TODO: parse `adb shell dumpsys meminfo <package>`.
+ * Verified against a real device — raw shape (whitespace-aligned table, values in KB):
  *
- * Raw output shape (whitespace-aligned table, values in KB):
- *
- *   ** MEMINFO in pid 1234 [com.example.app] **
+ *   ** MEMINFO in pid 2735 [com.google.android.youtube] **
  *                    Pss  Private  Private  SwapPss     Rss     Heap     Heap     Heap
  *                  Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
  *                  ------   ------   ------   ------   ------   ------   ------   ------
- *      Native Heap    12345     ...
- *      Dalvik Heap       678     ...
+ *      Native Heap     4000     2716     1276    21923     4708    41276    33023     3499
  *      ...
- *             TOTAL    98765      ...
+ *          TOTAL    97508     7336    36716    50252    98368    66552    45661    16137
+ *   ...
+ *    App Summary
+ *   ...
+ *              TOTAL PSS:    97508            TOTAL RSS:    98368       TOTAL SWAP PSS:    50252
  *
- * Sample.value = the "TOTAL" row's Pss Total column (KB) / 1024, converted to MB.
+ * There are two "TOTAL"-prefixed lines — the raw table's `TOTAL <Pss Total> ...` row (wanted)
+ * and the App Summary's `TOTAL PSS: <n> ...` line (must NOT match). Anchoring on "TOTAL" followed
+ * by whitespace then a digit (not "PSS:") disambiguates them.
+ *
+ * Returns null if no matching TOTAL row is found (e.g. the package isn't running).
  */
+export function parseMeminfoPssMb(output: string): number | null {
+  for (const line of output.split('\n')) {
+    const match = line.trim().match(/^TOTAL\s+(\d+)/);
+    if (!match) continue;
+    return Number(match[1]) / 1024;
+  }
+  return null;
+}
 export class MemoryCollector extends BaseCollector {
   readonly name = 'memory' as const;
   readonly unit = 'MB';
@@ -52,11 +64,13 @@ export class MemoryCollector extends BaseCollector {
 
   private async poll(): Promise<void> {
     try {
-      await adbShell(['dumpsys', 'meminfo', this.options.packageName], {
+      const output = await adbShell(['dumpsys', 'meminfo', this.options.packageName], {
         deviceId: this.options.deviceId,
       });
-      // TODO: parse the TOTAL row's Pss Total column (KB) described above and
-      // this.record({ t: Date.now(), value: kb / 1024 }).
+      const pssMb = parseMeminfoPssMb(output);
+      if (pssMb !== null) {
+        this.record({ t: Date.now(), value: pssMb });
+      }
     } catch {
       // Swallow: the owning service already warns once when adb is unavailable.
     }
