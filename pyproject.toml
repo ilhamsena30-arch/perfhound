@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Record mobile app performance (CPU time, memory, FPS) on Android and iOS."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "perfhound" }]
 dependencies = []
 
