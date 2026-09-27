@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "perfhound"
+version = "0.1.0"
+description = "Record mobile app performance (CPU time, memory, FPS) on Android and iOS."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "perfhound" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+perfhound = "perfhound.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
